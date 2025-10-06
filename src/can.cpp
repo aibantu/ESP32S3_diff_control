@@ -1,17 +1,21 @@
+#include <Arduino.h>
 #include "driver/twai.h"
 #include <esp_task_wdt.h>
 #include "can.h"
 #include <string.h>
 #include "motor.h"
+
 void CAN_RecvCallback(uint32_t id, uint8_t *data)
 {
 	switch (id) //根据CAN ID更新各电机数据
 	{
 	case 0x151:
 		Motor_Update(&leftWheel, data);
+		// Serial.printf("recieve from leftwheel\n");
 		break;
 	case 0x152:
 		Motor_Update(&rightWheel, data);
+		// Serial.printf("recieve from rightwheel\n");
 		break;
 	}
 }
@@ -34,7 +38,6 @@ void CAN_RecvTask(void *arg)
 		vTaskDelayUntil(&xLastWakeTime, 2); //2ms轮询一次
 	}
 }
-
 
 //CAN通信外设初始化
 void CAN_Init(void)
@@ -72,4 +75,5 @@ void CAN_SendFrame(uint32_t id, uint8_t *data)
 	msg.data_length_code = 8;
 	memcpy(msg.data, data, 8);
 	twai_transmit(&msg, 100);
+	// Serial.printf("send can frame : %x %x\n", data, msg.data);
 }

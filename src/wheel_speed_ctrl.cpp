@@ -1,6 +1,8 @@
 #include "wheel_speed_ctrl.h"
 #include <math.h>
 
+// 任务句柄（对外提供）
+TaskHandle_t wheelSpeedTaskHandle = NULL;
 // 全局控制模式与参考
 volatile ControlMode g_ctrlMode = CTRL_MODE_YAW;
 volatile uint32_t g_lastWheelCmdMs = 0;
@@ -49,7 +51,7 @@ void WheelSpeedCtrl_SetOpenLoop(float leftRad, float rightRad){
     g_ctrlMode = CTRL_MODE_WHEEL_SPEED_OPEN;
 }
 
-static void WheelSpeedTask(void *arg){
+void WheelSpeedTask(void *arg){
     TickType_t last = xTaskGetTickCount();
     static float rampRefL = 0.0f, rampRefR = 0.0f; // 斜坡后的参考
     while (1){
@@ -100,5 +102,6 @@ static void WheelSpeedTask(void *arg){
 void WheelSpeedCtrl_Init(void){
     PID_Init(&wheelPidL, WHEEL_PID_KP, WHEEL_PID_KI, WHEEL_PID_KD, WHEEL_PID_MAX_SUM, WHEEL_PID_MAX_OUT);
     PID_Init(&wheelPidR, WHEEL_PID_KP, WHEEL_PID_KI, WHEEL_PID_KD, WHEEL_PID_MAX_SUM, WHEEL_PID_MAX_OUT);
-    xTaskCreate(WheelSpeedTask, "WheelSpeedTask", 3072, NULL, 3, NULL);
+    xTaskCreate(WheelSpeedTask, "WheelSpeedTask", 3072, NULL, 3, &wheelSpeedTaskHandle);
+
 }

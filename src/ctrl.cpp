@@ -6,7 +6,8 @@
 #include "wheel_speed_ctrl.h"
 #include <esp_task_wdt.h>
 #include <math.h>
-
+TaskHandle_t ctrlBasicTaskHandle = NULL;
+void CtrlBasic_Task(void *arg);
 CascadePID yawPID; //机身yaw和roll控制PID
 
 
@@ -48,16 +49,16 @@ void Ctrl_TargetUpdateTask(void *arg)
 }
 
 
-
 void CtrlBasic_Task(void *arg)
 {
 	const float wheelRadius = 0.04; //m，车轮半径
 	TickType_t xLastWakeTime = xTaskGetTickCount();
 
 	//设定初始目标值
-	target.rollAngle = 0.0f;
-	target.speed = 0.0f;
-	target.position = (leftWheel.angle + rightWheel.angle) / 2 * wheelRadius;
+	target.position = stateVar.x;
+	target.yawAngle = imuData.yaw;
+	target.rollAngle = imuData.roll;
+	target.speed = stateVar.dx;
 	bool increasing = true; // 角度是否在增加
 	while (1)
 	{
@@ -88,9 +89,10 @@ void CtrlBasic_Task(void *arg)
 
 		//计算yaw轴PID输出
 		PID_CascadeCalc(&yawPID, target.yawAngle, imuData.yaw, imuData.yawSpd);
-		
+		// PID输出死区
+		if (fabs(yawPID.output) < 0.01f) yawPID.output = 0;
 		//设定车轮电机输出扭矩，为LQR和yaw轴PID输出的叠加
-		if(target.rollAngle<10) //正常接地状态
+		if(imuData.roll<10) //正常接地状态
 		{
 			Motor_SetTorque(&leftWheel, -yawPID.output);
 			Motor_SetTorque(&rightWheel, yawPID.output);
@@ -108,15 +110,15 @@ void CtrlBasic_Task(void *arg)
 void Ctrl_Init(void)
 {
 
-	PID_Init(&yawPID.inner, 0.01, 0, 0, 0, 0.1);
-	PID_Init(&yawPID.outer, 6, 0, 0, 0, 1);
+	PID_Init(&yawPID.inner, 0.01, 0, 0.01, 0, 0.1);
+	PID_Init(&yawPID.outer, 1, 0, 0.01, 0, 1);
 
 	xTaskCreate(Ctrl_TargetUpdateTask, "Ctrl_TargetUpdateTask", 4096, NULL, 3, NULL);
 	vTaskDelay(2);
 	//xTaskCreate(Ctrl_StandupPrepareTask, "StandupPrepare_Task", 4096, NULL, 1, NULL);
 	//xTaskCreate(vSinGeneratorTask, "vSinGeneratorTask", 4096, NULL, 1, NULL);
 	//xTaskCreate(VMC_TestTask, "VMC_TestTask", 4096, NULL, 1, NULL);
-	xTaskCreate(CtrlBasic_Task, "CtrlBasic_Task", 4096, NULL, 1, NULL);
+	xTaskCreate(CtrlBasic_Task, "CtrlBasic_Task", 4096, NULL, 1, &ctrlBasicTaskHandle);
 	// 新增：初始化车轮速度控制模块
 	WheelSpeedCtrl_Init();
 }

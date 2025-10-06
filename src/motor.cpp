@@ -71,7 +71,8 @@ void Motor_SendTask(void *arg)
 		*(int16_t *)&data[0] = ((int16_t)(leftWheel.voltage * 1000));
 		*(int16_t *)&data[2] = ((int16_t)(rightWheel.voltage * 1000));
         // Serial.printf("leftWheel.voltage: %.3f, rightWheel.voltage: %.3f\n", leftWheel.voltage, rightWheel.voltage);
-		CAN_SendFrame(0x150, data);
+		// Serial.printf("send can frame : %.3f %.3f\n", data[0], data[2]);
+        CAN_SendFrame(0x150, data);
 		vTaskDelay(2);
 	}
 }
