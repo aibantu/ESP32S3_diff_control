@@ -27,10 +27,6 @@
 #include "wheel_speed_ctrl.h"
 #include "motor.h"  // 为 g/h/j 查询电机数据
 
-extern TaskHandle_t ctrlBasicTaskHandle;
-extern TaskHandle_t wheelSpeedTaskHandle;
-extern void CtrlBasic_Task(void *arg);
-extern void WheelSpeedTask(void *arg);
 #define USB_CMD_TASK_STARTUP_DELAY_MS 1500
 
 // ===== 状态机缓冲 =====
@@ -82,8 +78,6 @@ static void sm_run(){
         case 'm': { // 闭环速度：m <left_rad_s> <right_rad_s>
             float l = (float)sm_arg1;
             float r = (float)sm_arg2;
-            Serial.printf("[CMD m] recv left=%.2f right=%.2f (raw1=%ld raw2=%ld) modeBefore=%d\n", 
-                          l, r, sm_arg1, sm_arg2, (int)g_ctrlMode);
             WheelSpeedCtrl_SetClosedLoop(l, r);
             Serial.println("OK");
             break; }
@@ -93,23 +87,6 @@ static void sm_run(){
             WheelSpeedCtrl_SetOpenLoop(l, r);
             Serial.println("OK");
             break; }
-        case 'f': {
-        if (ctrlBasicTaskHandle != NULL) {
-            vTaskDelete(ctrlBasicTaskHandle);
-            ctrlBasicTaskHandle = NULL;
-            xTaskCreate(WheelSpeedTask, "WheelSpeedTask", 3072, NULL, 3, &wheelSpeedTaskHandle);
-            Serial.println("已切换到轮速控制模式");
-        } else if (wheelSpeedTaskHandle != NULL) {
-            vTaskDelete(wheelSpeedTaskHandle);
-            wheelSpeedTaskHandle = NULL;
-            xTaskCreate(CtrlBasic_Task, "CtrlBasic_Task", 4096, NULL, 1, &ctrlBasicTaskHandle);
-            Serial.println("已切换到姿态控制模式");
-        } else {
-            // 默认创建姿态控制
-            xTaskCreate(CtrlBasic_Task, "CtrlBasic_Task", 4096, NULL, 1, &ctrlBasicTaskHandle);
-            Serial.println("已恢复姿态控制模式");
-        }
-            break;}
         case MOTOR_RAW_ANGLE: { // 'g' 返回左右轮原始角度 rawAngle
             float l = leftWheel.rawAngle;
             float r = rightWheel.rawAngle;

@@ -10,13 +10,7 @@
 extern "C" {
 #endif
 
-typedef enum {
-    CTRL_MODE_YAW = 0,
-    CTRL_MODE_WHEEL_SPEED_CLOSED,
-    CTRL_MODE_WHEEL_SPEED_OPEN
-} ControlMode;
-
-extern volatile ControlMode g_ctrlMode;
+// 已移除外部模式枚举与全局模式变量，系统仅保留车轮速度控制任务。
 extern volatile uint32_t g_lastWheelCmdMs;
 extern volatile float wheelSpeedRefL;
 extern volatile float wheelSpeedRefR;

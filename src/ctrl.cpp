@@ -49,63 +49,63 @@ void Ctrl_TargetUpdateTask(void *arg)
 }
 
 
-void CtrlBasic_Task(void *arg)
-{
-	const float wheelRadius = 0.04; //m，车轮半径
-	TickType_t xLastWakeTime = xTaskGetTickCount();
+// void CtrlBasic_Task(void *arg)
+// {
+// 	const float wheelRadius = 0.04; //m，车轮半径
+// 	TickType_t xLastWakeTime = xTaskGetTickCount();
 
-	//设定初始目标值
-	target.position = stateVar.x;
-	target.yawAngle = imuData.yaw;
-	target.rollAngle = imuData.roll;
-	target.speed = stateVar.dx;
-	bool increasing = true; // 角度是否在增加
-	while (1)
-	{
-		// 一次性 yaw 对齐与 PID 清零：避免上电初始 yaw 偏差造成的瞬间大输出
-		static bool yawAligned = false;
-		if(!yawAligned) {
-			// 直接将目标 yaw 置为当前测量值，并清空串级 PID 状态
-			target.yawAngle = imuData.yaw;
-			PID_Clear(&yawPID.inner);
-			PID_Clear(&yawPID.outer);
-			yawAligned = true;
-			Serial.println("[Ctrl] Yaw aligned & PID cleared");
-		}
-		// 如果当前为车轮速度模式（闭环或开环），则跳过 yaw 扭矩写入，由 WheelSpeedTask 负责
-		if (g_ctrlMode == CTRL_MODE_WHEEL_SPEED_CLOSED || g_ctrlMode == CTRL_MODE_WHEEL_SPEED_OPEN) {
-			vTaskDelayUntil(&xLastWakeTime, 4);
-			continue;
-		}
-		//计算状态变量
-		stateVar.x = (leftWheel.angle + rightWheel.angle) / 2 * wheelRadius;
-		stateVar.dx = (leftWheel.speed + rightWheel.speed) / 2 * wheelRadius;
+// 	//设定初始目标值
+// 	target.position = stateVar.x;
+// 	target.yawAngle = imuData.yaw;
+// 	target.rollAngle = imuData.roll;
+// 	target.speed = stateVar.dx;
+// 	bool increasing = true; // 角度是否在增加
+// 	while (1)
+// 	{
+// 		// 一次性 yaw 对齐与 PID 清零：避免上电初始 yaw 偏差造成的瞬间大输出
+// 		static bool yawAligned = false;
+// 		if(!yawAligned) {
+// 			// 直接将目标 yaw 置为当前测量值，并清空串级 PID 状态
+// 			target.yawAngle = imuData.yaw;
+// 			PID_Clear(&yawPID.inner);
+// 			PID_Clear(&yawPID.outer);
+// 			yawAligned = true;
+// 			Serial.println("[Ctrl] Yaw aligned & PID cleared");
+// 		}
+// 		// 如果当前为车轮速度模式（闭环或开环），则跳过 yaw 扭矩写入，由 WheelSpeedTask 负责
+// 		if (g_ctrlMode == CTRL_MODE_WHEEL_SPEED_CLOSED || g_ctrlMode == CTRL_MODE_WHEEL_SPEED_OPEN) {
+// 			vTaskDelayUntil(&xLastWakeTime, 4);
+// 			continue;
+// 		}
+// 		//计算状态变量
+// 		stateVar.x = (leftWheel.angle + rightWheel.angle) / 2 * wheelRadius;
+// 		stateVar.dx = (leftWheel.speed + rightWheel.speed) / 2 * wheelRadius;
 
-		//准备状态变量
-		float x[2] = {stateVar.x, stateVar.dx};
-		//与给定量作差
-		x[0] -= target.position;
-		x[1] -= target.speed;
+// 		//准备状态变量
+// 		float x[2] = {stateVar.x, stateVar.dx};
+// 		//与给定量作差
+// 		x[0] -= target.position;
+// 		x[1] -= target.speed;
 
-		//计算yaw轴PID输出
-		PID_CascadeCalc(&yawPID, target.yawAngle, imuData.yaw, imuData.yawSpd);
-		// PID输出死区
-		if (fabs(yawPID.output) < 0.01f) yawPID.output = 0;
-		//设定车轮电机输出扭矩，为LQR和yaw轴PID输出的叠加
-		if(imuData.roll<10) //正常接地状态
-		{
-			Motor_SetTorque(&leftWheel, -yawPID.output);
-			Motor_SetTorque(&rightWheel, yawPID.output);
-		}
-		else //侧翻状态，关闭车轮电机
-		{
-			Motor_SetTorque(&leftWheel, 0);
-			Motor_SetTorque(&rightWheel, 0);
-		}
+// 		//计算yaw轴PID输出
+// 		PID_CascadeCalc(&yawPID, target.yawAngle, imuData.yaw, imuData.yawSpd);
+// 		// PID输出死区
+// 		if (fabs(yawPID.output) < 0.01f) yawPID.output = 0;
+// 		//设定车轮电机输出扭矩，为LQR和yaw轴PID输出的叠加
+// 		if(imuData.roll<10) //正常接地状态
+// 		{
+// 			Motor_SetTorque(&leftWheel, -yawPID.output);
+// 			Motor_SetTorque(&rightWheel, yawPID.output);
+// 		}
+// 		else //侧翻状态，关闭车轮电机
+// 		{
+// 			Motor_SetTorque(&leftWheel, 0);
+// 			Motor_SetTorque(&rightWheel, 0);
+// 		}
 
-		vTaskDelayUntil(&xLastWakeTime, 4); //4ms控制周期
-	}
-}
+// 		vTaskDelayUntil(&xLastWakeTime, 4); //4ms控制周期
+// 	}
+// }
 
 void Ctrl_Init(void)
 {
@@ -118,7 +118,7 @@ void Ctrl_Init(void)
 	//xTaskCreate(Ctrl_StandupPrepareTask, "StandupPrepare_Task", 4096, NULL, 1, NULL);
 	//xTaskCreate(vSinGeneratorTask, "vSinGeneratorTask", 4096, NULL, 1, NULL);
 	//xTaskCreate(VMC_TestTask, "VMC_TestTask", 4096, NULL, 1, NULL);
-	xTaskCreate(CtrlBasic_Task, "CtrlBasic_Task", 4096, NULL, 1, &ctrlBasicTaskHandle);
+	// xTaskCreate(CtrlBasic_Task, "CtrlBasic_Task", 4096, NULL, 1, &ctrlBasicTaskHandle);
 	// 新增：初始化车轮速度控制模块
 	WheelSpeedCtrl_Init();
 }
