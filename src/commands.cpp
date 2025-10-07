@@ -76,15 +76,15 @@ static void sm_run(){
             Serial.print("ANALOGWRITE "); Serial.print((int)sm_arg1); Serial.print(' '); Serial.println(duty);
             break; }
         case 'm': { // 闭环速度：m <left_rad_s> <right_rad_s>
-            float l = (float)sm_arg1;
-            float r = (float)sm_arg2;
-            WheelSpeedCtrl_SetClosedLoop(l, r);
+            float leftSpeed = (float)sm_arg1;
+            float rightSpeed = (float)sm_arg2;
+            WheelSpeedCtrl_SetClosedLoop(leftSpeed, rightSpeed);
             Serial.println("OK");
             break; }
         case 'o': { // 开环速度：o <left_rad_s> <right_rad_s>
-            float l = (float)sm_arg1;
-            float r = (float)sm_arg2;
-            WheelSpeedCtrl_SetOpenLoop(l, r);
+            float leftSpeed = (float)sm_arg1;
+            float rightSpeed = (float)sm_arg2;
+            WheelSpeedCtrl_SetOpenLoop(leftSpeed, rightSpeed);
             Serial.println("OK");
             break; }
         case MOTOR_RAW_ANGLE: { // 'g' 返回左右轮原始角度 rawAngle

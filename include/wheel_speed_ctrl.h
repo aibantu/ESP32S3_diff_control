@@ -22,8 +22,8 @@ extern TaskHandle_t wheelSpeedTaskHandle;
 void WheelSpeedTask(void *arg);
 
 void WheelSpeedCtrl_Init(void);
-void WheelSpeedCtrl_SetClosedLoop(float leftRad, float rightRad);
-void WheelSpeedCtrl_SetOpenLoop(float leftRad, float rightRad);
+void WheelSpeedCtrl_SetClosedLoop(float leftSpeed, float rightSpeed);
+void WheelSpeedCtrl_SetOpenLoop(float leftSpeed, float rightSpeed);
 
 #ifdef __cplusplus
 }

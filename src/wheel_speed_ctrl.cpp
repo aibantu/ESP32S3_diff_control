@@ -5,26 +5,20 @@
 TaskHandle_t wheelSpeedTaskHandle = NULL;
 // 仅保留轮速控制参考（不再有全局模式切换）
 volatile uint32_t g_lastWheelCmdMs = 0;
+
+// 左右轮的速度参考值（弧度 / 秒）
 volatile float wheelSpeedRefL = 0.0f;
 volatile float wheelSpeedRefR = 0.0f;
 
-static PID wheelPidL, wheelPidR;
-
-// 配置常量
-#define WHEEL_PID_KP 0.9f
-#define WHEEL_PID_KI 0.0f
-// 调整：周期从8ms改为4ms，为保持等效微分增益，将KD加倍（隐式dt实现）
-#define WHEEL_PID_KD 0.06f
-#define WHEEL_PID_MAX_SUM 0.5f
-#define WHEEL_PID_MAX_OUT 0.9f
+static PID leftWheelPID, rightWheelPID;
 
 // 控制周期与 CtrlBasic_Task 统一为 4ms（原 8ms）
 #define WHEEL_CTRL_PERIOD_MS 4
 #define WHEEL_CMD_TIMEOUT_MS 5000   // 超时5秒：仅清零速度，不回退模式
-#define MAX_WHEEL_SPEED_RAD 25.0f     // 速度参考限幅
+#define MAX_WHEEL_SPEED 25.0f     // 速度参考限幅
 // 斜坡步长：原 8ms 周期为 2 rad/s/周期 => 等效加速度约 250 rad/s^2
 // 改为 4ms 后为保持相同加速度，将每周期增量减半为 1 rad/s
-#define REF_SLEW_STEP (1.0f)          // 每周期最大参考增量(rad/s)（可调，隐式dt）
+#define REF_SLEW_STEP (1.0f)          // 每周期最大参考增量(1rad/s)（可调，隐式dt）
 
 // 开环参数
 #define OPEN_K_LINEAR 0.03f
@@ -38,20 +32,20 @@ static float slewLimit(float target, float current, float step){
 
 static bool isClosedLoop = true; // 默认闭环
 
-void WheelSpeedCtrl_SetClosedLoop(float leftRad, float rightRad){
-    if (fabsf(leftRad) > MAX_WHEEL_SPEED_RAD) leftRad = (leftRad>0?MAX_WHEEL_SPEED_RAD:-MAX_WHEEL_SPEED_RAD);
-    if (fabsf(rightRad) > MAX_WHEEL_SPEED_RAD) rightRad = (rightRad>0?MAX_WHEEL_SPEED_RAD:-MAX_WHEEL_SPEED_RAD);
-    wheelSpeedRefL = leftRad;
-    wheelSpeedRefR = rightRad;
+void WheelSpeedCtrl_SetClosedLoop(float leftSpeed, float rightSpeed){
+    if (fabsf(leftSpeed) > MAX_WHEEL_SPEED) leftSpeed = (leftSpeed>0?MAX_WHEEL_SPEED:-MAX_WHEEL_SPEED);
+    if (fabsf(rightSpeed) > MAX_WHEEL_SPEED) rightSpeed = (rightSpeed>0?MAX_WHEEL_SPEED:-MAX_WHEEL_SPEED);
+    wheelSpeedRefL = leftSpeed;
+    wheelSpeedRefR = rightSpeed;
     g_lastWheelCmdMs = millis();
     isClosedLoop = true;
 }
 
-void WheelSpeedCtrl_SetOpenLoop(float leftRad, float rightRad){
-    if (fabsf(leftRad) > MAX_WHEEL_SPEED_RAD) leftRad = (leftRad>0?MAX_WHEEL_SPEED_RAD:-MAX_WHEEL_SPEED_RAD);
-    if (fabsf(rightRad) > MAX_WHEEL_SPEED_RAD) rightRad = (rightRad>0?MAX_WHEEL_SPEED_RAD:-MAX_WHEEL_SPEED_RAD);
-    wheelSpeedRefL = leftRad;
-    wheelSpeedRefR = rightRad;
+void WheelSpeedCtrl_SetOpenLoop(float leftSpeed, float rightSpeed){
+    if (fabsf(leftSpeed) > MAX_WHEEL_SPEED) leftSpeed = (leftSpeed>0?MAX_WHEEL_SPEED:-MAX_WHEEL_SPEED);
+    if (fabsf(rightSpeed) > MAX_WHEEL_SPEED) rightSpeed = (rightSpeed>0?MAX_WHEEL_SPEED:-MAX_WHEEL_SPEED);
+    wheelSpeedRefL = leftSpeed;
+    wheelSpeedRefR = rightSpeed;
     g_lastWheelCmdMs = millis();
     isClosedLoop = false;
 }
@@ -77,10 +71,10 @@ void WheelSpeedTask(void *arg){
         float torqueL = 0.0f, torqueR = 0.0f;
 
         if (isClosedLoop){
-            PID_SingleCalc(&wheelPidL, rampRefL, curL);
-            PID_SingleCalc(&wheelPidR, rampRefR, curR);
-            torqueL = wheelPidL.output;
-            torqueR = wheelPidR.output;
+            PID_SingleCalc(&leftWheelPID, rampRefL, curL);
+            PID_SingleCalc(&rightWheelPID, rampRefR, curR);
+            torqueL = leftWheelPID.output;
+            torqueR = rightWheelPID.output;
         } else { // OPEN LOOP
             if (fabsf(rampRefL) > 0.01f)
                 torqueL = OPEN_K_LINEAR * rampRefL + OPEN_K_BIAS * (rampRefL>0?1:-1);
@@ -101,8 +95,8 @@ void WheelSpeedTask(void *arg){
 }
 
 void WheelSpeedCtrl_Init(void){
-    PID_Init(&wheelPidL, WHEEL_PID_KP, WHEEL_PID_KI, WHEEL_PID_KD, WHEEL_PID_MAX_SUM, WHEEL_PID_MAX_OUT);
-    PID_Init(&wheelPidR, WHEEL_PID_KP, WHEEL_PID_KI, WHEEL_PID_KD, WHEEL_PID_MAX_SUM, WHEEL_PID_MAX_OUT);
+    PID_Init(&leftWheelPID, 0.2, 0, 0.06, 0.5, 0.9);
+    PID_Init(&rightWheelPID, 0.2, 0, 0.06, 0.5, 0.9);
     xTaskCreate(WheelSpeedTask, "WheelSpeedTask", 3072, NULL, 3, &wheelSpeedTaskHandle);
 
 }
