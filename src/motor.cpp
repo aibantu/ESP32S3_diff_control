@@ -195,8 +195,8 @@ void Log_Task(void *arg)
 void Motor_InitAll(void)
 {
     // 基础参数初始化 - 暂时统一方向，通过软件处理差动
-    Motor_Init(&leftWheel, 0, 7.0f, 0.0333f, -1, Motor_CalcRevVolt4310);   // 左轮正向
-    Motor_Init(&rightWheel, 0, 7.0f, 0.0333f, 1, Motor_CalcRevVolt4310);  // 右轮也设为正向，避免方向冲突
+    Motor_Init(&leftWheel, 0, 7.0f, 0.05f, M1_DIR, Motor_CalcRevVolt4310);   // 左轮正向
+    Motor_Init(&rightWheel, 0, 7.0f, 0.05f, M2_DIR, Motor_CalcRevVolt4310);  // 右轮也设为正向，避免方向冲突
     // 创建发送任务
     xTaskCreate(Motor_SendTask, "Motor_SendTask", 2048, NULL, 4, NULL);
     

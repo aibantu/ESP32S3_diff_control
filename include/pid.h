@@ -1,49 +1,24 @@
-#ifndef _PID_H_
-#define _PID_H_
+#ifndef PID_H
+#define PID_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "stdint.h"
-
-#define LIMIT(x,min,max) (x)=(((x)<=(min))?(min):(((x)>=(max))?(max):(x)))
-
-#ifndef ABS
-#define ABS(x) ((x)>=0?(x):-(x))
-#endif
-
-//PID参数结构体
-typedef struct _PID
+class PIDController
 {
-	float kp,ki,kd;
-	float error,lastError;
-	float integral,maxIntegral;
-	float output,maxOutput;
-	float deadzone;
-	float errLpfRatio;
-}PID;
+public:
+    PIDController(float P, float I, float D, float ramp, float limit);
+    ~PIDController() = default;
 
-//串级PID参数结构体
-typedef struct _CascadePID
-{
-	PID inner;
-	PID outer;
-	float output;
-}CascadePID;
+    float operator() (float error);
 
-void PID_Init(PID *pid,float p,float i,float d,float maxSum,float maxOut);
-void PID_SingleCalc(PID *pid,float reference,float feedback);
-void PID_CascadeCalc(CascadePID *pid,float angleRef,float angleFdb,float speedFdb);
-void PID_Clear(PID *pid);
-void PID_SetMaxOutput(PID *pid,float maxOut);
-void PID_SetDeadzone(PID *pid,float deadzone);
-void PID_SetErrLpfRatio(PID *pid,float ratio);
-
-extern CascadePID yawPID; 
-
-#ifdef __cplusplus
-}
-#endif
+    float P; //!< 比例增益(P环增益)
+    float I; //!< 积分增益（I环增益）
+    float D; //!< 微分增益（D环增益）
+    float output_ramp; 
+    float limit; 
+protected:
+    float error_prev; //!< 最后的跟踪误差值
+    float output_prev;  //!< 最后一个 pid 输出值
+    float integral_prev; //!< 最后一个积分分量值
+    unsigned long timestamp_prev; //!< 上次执行时间戳
+};
 
 #endif

@@ -9,6 +9,7 @@
 #define MOTOR_RAW_ANGLE  'g'  // 返回左右轮 rawAngle（原始角度）
 #define MOTOR_ANGLE      'h'  // 返回左右轮 angle（校正后角度）
 #define MOTOR_SPEED      'j'  // 返回左右轮 speed（rad/s）
+#define SET_POSITION 'p'  // 改为小写以统一所有命令
 // 新增差速控制相关：
 #define DIFF_SET_VW      'v'  // 设置线速度(m/s) 与角速度(rad/s) 参考（进入速度模式闭环）
 #define DIFF_QUERY_STATE 'q'  // 查询当前底盘状态（里程/轮速/航向/参考值/模式）

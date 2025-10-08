@@ -1,24 +1,3 @@
-/*
-    commands.cpp
-    精简命令解析（参考提供的 command_processor 状态机思路），在 USB Serial 上实现：
-        b                 -> 打印当前波特率 115200
-        a <pin>           -> 模拟读取 (analogRead)
-        d <pin>           -> 数字读取 (digitalRead)
-        c <pin> <mode>    -> 设置 pinMode，mode: 0=INPUT 1=OUTPUT 2=INPUT_PULLUP 3=INPUT_PULLDOWN(若支持)
-        w <pin> <val>     -> digitalWrite(val!=0?HIGH:LOW)
-        x <pin> <duty>    -> analogWrite，占空 0-255
-
-    解析规则：
-        - 按字符流解析，空格分隔参数，以 \r 或 \n 结束命令；忽略多余空格。
-        - 最多两个参数（argv1, argv2），不足时缺省为 0。
-        - 与参考实现一致：状态机变量 arg(0/1/2) 管理当前写入的目标。
-
-    说明：
-        - 仅保留基础硬件交互命令，未加入差速/电机/编码器等扩展逻辑，便于最小化维护。
-        - 可后续无缝扩展：在 switch(cmd) 中添加 case。
-*/
-
-// ===== 依赖与宏 =====
 #include <Arduino.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -26,9 +5,9 @@
 #include "../include/commands.h"
 #include "wheel_speed_ctrl.h"
 #include "motor.h"  // 为 g/h/j 查询电机数据
+#include "position_ctrl.h"
 
 #define USB_CMD_TASK_STARTUP_DELAY_MS 1500
-
 // ===== 状态机缓冲 =====
 static int sm_arg = 0;      // 0=命令 1=参数1 2=参数2 3=参数3
 static int sm_index = 0;    // 当前写入索引
@@ -83,7 +62,7 @@ static void sm_run(){
             float leftSpeed = (float)sm_arg1;
             float rightSpeed = (float)sm_arg2;
             float posOffset = sm_arg3; // 第三个参数为位置偏移(可选)
-            WheelSpeedCtrl_SetClosedLoop(leftSpeed, rightSpeed, posOffset);
+            // WheelSpeedCtrl_SetClosedLoop(leftSpeed, rightSpeed, posOffset);
             Serial.println("OK");
             break; }
         case MOTOR_RAW_ANGLE: { // 'g' 返回左右轮原始角度 rawAngle
@@ -103,6 +82,20 @@ static void sm_run(){
             Serial.print(leftWheel.speed, 3);
             Serial.print(" R:");
             Serial.println(rightWheel.speed, 3);
+            break; }
+        case 'p': { // 'p' : p <left_angle> <right_angle> [r]
+            // 参数：leftAngle(rad) rightAngle(rad) 可选 第三参数=字符r表示相对模式，否则绝对
+            float leftAngle = atof(sm_argv1);
+            float rightAngle = atof(sm_argv2);
+            bool relative = false;
+            // 仅当第三参数存在且为 'r' 时才按相对模式
+            if (sm_argv3[0] != 0 && sm_argv3[0] == 'r') relative = true;
+            PositionCtrl_Init();
+            PositionCtrl_SetTargets(leftAngle, rightAngle, relative);
+            Serial.print("Pos Target L:"); Serial.print(leftAngle, 3);
+            Serial.print(" R:"); Serial.print(rightAngle, 3);
+            Serial.print(relative?" (rel)":" (abs)");
+            Serial.println();
             break; }
         default:
             Serial.println("Invalid Command");
@@ -132,6 +125,8 @@ static void USB_CommandTask(void *pvParameters){
                 continue;
             }
             if (sm_arg == 0){
+                // 统一大小写：命令字符转为小写
+                if(ch >= 'A' && ch <= 'Z') ch = ch - 'A' + 'a';
                 sm_cmd = ch;
             } else if (sm_arg == 1){
                 if (sm_index < (int)sizeof(sm_argv1)-1) sm_argv1[sm_index++] = ch;

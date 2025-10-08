@@ -7,6 +7,7 @@
 
 void CAN_RecvCallback(uint32_t id, uint8_t *data)
 {
+
 	switch (id) //根据CAN ID更新各电机数据
 	{
 	case 0x151:
