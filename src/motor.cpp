@@ -42,6 +42,7 @@ void Motor_UpdateVoltage(Motor *motor)
 	else if (voltage < -motor->maxVoltage)
 		voltage = -motor->maxVoltage;
 	motor->voltage = voltage  * motor->dir;
+    // Serial.printf("电机电压更新: %.3f\n", motor->voltage);
 }
 
 //从CAN总线接收到的数据中解析出电机角度和速度
@@ -193,10 +194,9 @@ void Log_Task(void *arg)
 // 修改初始化函数
 void Motor_InitAll(void)
 {
-    // 基础参数初始化
-
-    Motor_Init(&leftWheel, 0, 7.0f, 0.01f, 1, Motor_CalcRevVolt4310);
-    Motor_Init(&rightWheel, 0, 7.0f, 0.01f, -1, Motor_CalcRevVolt4310);
+    // 基础参数初始化 - 暂时统一方向，通过软件处理差动
+    Motor_Init(&leftWheel, 0, 7.0f, 0.0333f, -1, Motor_CalcRevVolt4310);   // 左轮正向
+    Motor_Init(&rightWheel, 0, 7.0f, 0.0333f, 1, Motor_CalcRevVolt4310);  // 右轮也设为正向，避免方向冲突
     // 创建发送任务
     xTaskCreate(Motor_SendTask, "Motor_SendTask", 2048, NULL, 4, NULL);
     

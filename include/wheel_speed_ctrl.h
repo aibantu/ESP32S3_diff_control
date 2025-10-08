@@ -22,8 +22,11 @@ extern TaskHandle_t wheelSpeedTaskHandle;
 void WheelSpeedTask(void *arg);
 
 void WheelSpeedCtrl_Init(void);
-void WheelSpeedCtrl_SetClosedLoop(float leftSpeed, float rightSpeed);
+void WheelSpeedCtrl_SetClosedLoop(float leftSpeed, float rightSpeed, float posOffset = 0.0f);
 void WheelSpeedCtrl_SetOpenLoop(float leftSpeed, float rightSpeed);
+
+// 级联（速度外环+速度内环）初始化：会自动删除已有单环任务并创建新任务
+void WheelSpeedCascade_Init(void);
 
 #ifdef __cplusplus
 }

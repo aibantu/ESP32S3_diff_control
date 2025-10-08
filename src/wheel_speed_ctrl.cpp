@@ -1,102 +1,203 @@
 #include "wheel_speed_ctrl.h"
 #include <math.h>
 
-// 任务句柄（对外提供）
-TaskHandle_t wheelSpeedTaskHandle = NULL;
-// 仅保留轮速控制参考（不再有全局模式切换）
-volatile uint32_t g_lastWheelCmdMs = 0;
+/*
+  轮速控制模块 - 简化稳定的双环控制
+  
+  设计思路：
+  - 统一双环控制：位置外环 + 速度内环
+  - 速度模式：动态积分更新位置目标
+  - 位置模式：固定位置目标
+  - 彻底独立，不依赖ctrl.cpp的target变量
+*/
 
-// 左右轮的速度参考值（弧度 / 秒）
+// 全局变量
+volatile uint32_t g_lastWheelCmdMs = 0;
 volatile float wheelSpeedRefL = 0.0f;
 volatile float wheelSpeedRefR = 0.0f;
+TaskHandle_t wheelSpeedTaskHandle = NULL;
 
-static PID leftWheelPID, rightWheelPID;
+// 简化的控制状态
+static struct {
+    // PID控制器
+    CascadePID leftPID, rightPID;
+    
+    // 目标值
+    float targetSpeedL, targetSpeedR;      // 目标速度 (rad/s)
+    float targetAngleL, targetAngleR;      // 目标位置 (rad)
+    
+    // 控制模式
+    bool isPositionMode;                   // 位置模式标志
+    
+    // 状态
+    bool isActive;                         // 控制激活标志
+} wheelCtrl = {0};
 
-// 控制周期与 CtrlBasic_Task 统一为 4ms（原 8ms）
-#define WHEEL_CTRL_PERIOD_MS 4
-#define WHEEL_CMD_TIMEOUT_MS 5000   // 超时5秒：仅清零速度，不回退模式
-#define MAX_WHEEL_SPEED 25.0f     // 速度参考限幅
-// 斜坡步长：原 8ms 周期为 2 rad/s/周期 => 等效加速度约 250 rad/s^2
-// 改为 4ms 后为保持相同加速度，将每周期增量减半为 1 rad/s
-#define REF_SLEW_STEP (1.0f)          // 每周期最大参考增量(1rad/s)（可调，隐式dt）
+#define CTRL_PERIOD_MS 4
+#define CMD_TIMEOUT_MS 5000
 
-// 开环参数
-#define OPEN_K_LINEAR 0.03f
-#define OPEN_K_BIAS   0.08f
-
-static float slewLimit(float target, float current, float step){
-    float d = target - current;
-    if (d > step) d = step; else if (d < -step) d = -step;
-    return current + d;
-}
-
-static bool isClosedLoop = true; // 默认闭环
-
-void WheelSpeedCtrl_SetClosedLoop(float leftSpeed, float rightSpeed){
-    if (fabsf(leftSpeed) > MAX_WHEEL_SPEED) leftSpeed = (leftSpeed>0?MAX_WHEEL_SPEED:-MAX_WHEEL_SPEED);
-    if (fabsf(rightSpeed) > MAX_WHEEL_SPEED) rightSpeed = (rightSpeed>0?MAX_WHEEL_SPEED:-MAX_WHEEL_SPEED);
-    wheelSpeedRefL = leftSpeed;
-    wheelSpeedRefR = rightSpeed;
-    g_lastWheelCmdMs = millis();
-    isClosedLoop = true;
-}
-
-void WheelSpeedCtrl_SetOpenLoop(float leftSpeed, float rightSpeed){
-    if (fabsf(leftSpeed) > MAX_WHEEL_SPEED) leftSpeed = (leftSpeed>0?MAX_WHEEL_SPEED:-MAX_WHEEL_SPEED);
-    if (fabsf(rightSpeed) > MAX_WHEEL_SPEED) rightSpeed = (rightSpeed>0?MAX_WHEEL_SPEED:-MAX_WHEEL_SPEED);
-    wheelSpeedRefL = leftSpeed;
-    wheelSpeedRefR = rightSpeed;
-    g_lastWheelCmdMs = millis();
-    isClosedLoop = false;
-}
-
-void WheelSpeedTask(void *arg){
-    TickType_t last = xTaskGetTickCount();
-    static float rampRefL = 0.0f, rampRefR = 0.0f; // 斜坡后的参考
-    while (1){
+// 简化稳定的控制任务
+void WheelSpeedTask(void *arg) {
+    TickType_t lastWakeTime = xTaskGetTickCount();
+    
+    while (1) {
         uint32_t now = millis();
-        // 超时处理：5秒无新指令 -> 设定参考为0（停止）
-        if ((now - g_lastWheelCmdMs) > WHEEL_CMD_TIMEOUT_MS){
-            wheelSpeedRefL = wheelSpeedRefR = 0.0f;
-            rampRefL = rampRefR = 0.0f; // 立即停止，不使用缓降
+        
+        // 超时保护
+        if ((now - g_lastWheelCmdMs) > CMD_TIMEOUT_MS) {
+            wheelCtrl.targetSpeedL = wheelCtrl.targetSpeedR = 0.0f;
+            wheelCtrl.isActive = false;
         }
-
-        // 参考斜坡限制（始终执行）
-        rampRefL = slewLimit((float)wheelSpeedRefL, rampRefL, REF_SLEW_STEP);
-        rampRefR = slewLimit((float)wheelSpeedRefR, rampRefR, REF_SLEW_STEP);
-
-        // 读取当前速度 (rad/s)
-        float curL = leftWheel.speed;
-        float curR = rightWheel.speed;
-        float torqueL = 0.0f, torqueR = 0.0f;
-
-        if (isClosedLoop){
-            PID_SingleCalc(&leftWheelPID, rampRefL, curL);
-            PID_SingleCalc(&rightWheelPID, rampRefR, curR);
-            torqueL = leftWheelPID.output;
-            torqueR = rightWheelPID.output;
-        } else { // OPEN LOOP
-            if (fabsf(rampRefL) > 0.01f)
-                torqueL = OPEN_K_LINEAR * rampRefL + OPEN_K_BIAS * (rampRefL>0?1:-1);
-            if (fabsf(rampRefR) > 0.01f)
-                torqueR = OPEN_K_LINEAR * rampRefR + OPEN_K_BIAS * (rampRefR>0?1:-1);
+        
+        // 停机处理
+        if (!wheelCtrl.isActive) {
+            Motor_SetTorque(&leftWheel, 0);
+            Motor_SetTorque(&rightWheel, 0);
+            vTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(CTRL_PERIOD_MS));
+            continue;
         }
-
-        // 扭矩限幅（根据最大驱动电压反推可安全扭矩范围）
-        float maxT = leftWheel.maxVoltage * leftWheel.torqueRatio * motorOutRatio;
-        if (torqueL > maxT) torqueL = maxT; else if (torqueL < -maxT) torqueL = -maxT;
-        if (torqueR > maxT) torqueR = maxT; else if (torqueR < -maxT) torqueR = -maxT;
-
-        Motor_SetTorque(&leftWheel, torqueL);
-        Motor_SetTorque(&rightWheel, torqueR);
-
-        vTaskDelayUntil(&last, pdMS_TO_TICKS(WHEEL_CTRL_PERIOD_MS));
+        
+        // 速度模式：根据目标速度动态更新位置目标
+        if (!wheelCtrl.isPositionMode) {
+            // 积分更新位置目标，实现速度跟踪
+            wheelCtrl.targetAngleL += wheelCtrl.targetSpeedL * 0.004f;  // 4ms积分
+            wheelCtrl.targetAngleR += wheelCtrl.targetSpeedR * 0.004f;  // 右轮同向
+            
+            // 限制位置偏移，防止积分发散
+            float maxDrift = 1.0f;  // 减小偏移限制
+            if (wheelCtrl.targetAngleL - leftWheel.angle > maxDrift) {
+                wheelCtrl.targetAngleL = leftWheel.angle + maxDrift;
+            } else if (wheelCtrl.targetAngleL - leftWheel.angle < -maxDrift) {
+                wheelCtrl.targetAngleL = leftWheel.angle - maxDrift;
+            }
+            
+            if (wheelCtrl.targetAngleR - rightWheel.angle > maxDrift) {
+                wheelCtrl.targetAngleR = rightWheel.angle + maxDrift;
+            } else if (wheelCtrl.targetAngleR - rightWheel.angle < -maxDrift) {
+                wheelCtrl.targetAngleR = rightWheel.angle - maxDrift;
+            }
+        }
+        
+        // 双环级联PID控制
+        PID_CascadeCalc(&wheelCtrl.leftPID, 
+                       wheelCtrl.targetAngleL,      // 目标位置
+                       leftWheel.angle,             // 实际位置
+                       leftWheel.speed);            // 实际速度
+        
+        PID_CascadeCalc(&wheelCtrl.rightPID,
+                       wheelCtrl.targetAngleR,      // 目标位置  
+                       rightWheel.angle,            // 实际位置
+                       rightWheel.speed);           // 实际速度
+        
+        // 输出扭矩 - 右轮需要反向以实现正确的差动
+        Motor_SetTorque(&leftWheel, wheelCtrl.leftPID.output);
+        Motor_SetTorque(&rightWheel, -wheelCtrl.rightPID.output);  // 右轮反向
+        
+        vTaskDelayUntil(&lastWakeTime, pdMS_TO_TICKS(CTRL_PERIOD_MS));
     }
 }
 
-void WheelSpeedCtrl_Init(void){
-    PID_Init(&leftWheelPID, 0.2, 0, 0.06, 0.5, 0.9);
-    PID_Init(&rightWheelPID, 0.2, 0, 0.06, 0.5, 0.9);
-    xTaskCreate(WheelSpeedTask, "WheelSpeedTask", 3072, NULL, 3, &wheelSpeedTaskHandle);
+// 简化初始化函数
+void WheelSpeedCtrl_Init(void) {
+    // 外环(位置环) - 保守稳定的参数
+    PID_Init(&wheelCtrl.leftPID.outer, 0.4f, 0.01f, 0.005f, 0.8f, 10.0f);
+    PID_Init(&wheelCtrl.rightPID.outer, 0.4f, 0.01f, 0.005f, 0.8f, 10.0f);
+    
+    // 内环(速度环) - 响应快但稳定的参数  
+    PID_Init(&wheelCtrl.leftPID.inner, 0.08f, 0.008f, 0.002f, 0.3f, 0.6f);
+    PID_Init(&wheelCtrl.rightPID.inner, 0.08f, 0.008f, 0.002f, 0.3f, 0.6f);
+    
+    // 适当的死区设置
+    PID_SetDeadzone(&wheelCtrl.leftPID.outer, 0.02f);    
+    PID_SetDeadzone(&wheelCtrl.rightPID.outer, 0.02f);
+    PID_SetDeadzone(&wheelCtrl.leftPID.inner, 0.1f);     
+    PID_SetDeadzone(&wheelCtrl.rightPID.inner, 0.1f);
+    
+    // 滤波设置  
+    PID_SetErrLpfRatio(&wheelCtrl.leftPID.outer, 0.9f);
+    PID_SetErrLpfRatio(&wheelCtrl.rightPID.outer, 0.9f);
+    PID_SetErrLpfRatio(&wheelCtrl.leftPID.inner, 0.7f);
+    PID_SetErrLpfRatio(&wheelCtrl.rightPID.inner, 0.7f);
+    
+    // 初始化控制状态
+    wheelCtrl.targetAngleL = leftWheel.angle;
+    wheelCtrl.targetAngleR = rightWheel.angle;
+    wheelCtrl.targetSpeedL = 0.0f;
+    wheelCtrl.targetSpeedR = 0.0f;
+    wheelCtrl.isPositionMode = false;
+    wheelCtrl.isActive = false;
+    
+    // 创建控制任务
+    if (wheelSpeedTaskHandle) {
+        vTaskDelete(wheelSpeedTaskHandle);
+    }
+    xTaskCreate(WheelSpeedTask, "WheelCtrl", 3072, NULL, 4, &wheelSpeedTaskHandle);
+    
+    g_lastWheelCmdMs = millis();
+    Serial.println("[WheelCtrl] Initialized - Dual-loop cascade control");
+}
 
+// 简化的设置函数
+void WheelSpeedCtrl_SetClosedLoop(float leftSpeed, float rightSpeed, float posOffset) {
+    g_lastWheelCmdMs = millis();
+    
+    // 激活控制
+    wheelCtrl.isActive = true;
+    
+    // 位置模式
+    if (posOffset != 0.0f) {
+        wheelCtrl.isPositionMode = true;
+        wheelCtrl.targetAngleL = leftWheel.angle + posOffset;
+        wheelCtrl.targetAngleR = rightWheel.angle + posOffset;
+        
+        Serial.print("Position: offset=");
+        Serial.println(posOffset, 2);
+    } 
+    // 速度模式
+    else {
+        wheelCtrl.isPositionMode = false;
+        wheelCtrl.targetSpeedL = leftSpeed;
+        wheelCtrl.targetSpeedR = rightSpeed;
+        
+        // 初始位置设为当前位置，避免跳跃
+        wheelCtrl.targetAngleL = leftWheel.angle;
+        wheelCtrl.targetAngleR = rightWheel.angle;
+        
+        Serial.print("Speed: L=");
+        Serial.print(leftSpeed, 1);
+        Serial.print(" R=");
+        Serial.println(rightSpeed, 1);
+    }
+    
+    // 清除PID历史
+    PID_Clear(&wheelCtrl.leftPID.inner);
+    PID_Clear(&wheelCtrl.leftPID.outer);
+    PID_Clear(&wheelCtrl.rightPID.inner);
+    PID_Clear(&wheelCtrl.rightPID.outer);
+    
+    // 兼容性
+    wheelSpeedRefL = leftSpeed;
+    wheelSpeedRefR = rightSpeed;
+}
+
+// 开环控制(简化版)
+void WheelSpeedCtrl_SetOpenLoop(float leftSpeed, float rightSpeed) {
+    wheelCtrl.isActive = false;  // 禁用闭环控制
+    
+    float maxTorque = leftWheel.maxVoltage * leftWheel.torqueRatio * motorOutRatio;
+    float torqueL = leftSpeed * 0.08f;   // 开环映射系数
+    float torqueR = rightSpeed * 0.08f;
+    
+    // 扭矩限幅
+    if (torqueL > maxTorque) torqueL = maxTorque;
+    else if (torqueL < -maxTorque) torqueL = -maxTorque;
+    if (torqueR > maxTorque) torqueR = maxTorque;
+    else if (torqueR < -maxTorque) torqueR = -maxTorque;
+    
+    // 右轮反向
+    Motor_SetTorque(&leftWheel, torqueL);
+    Motor_SetTorque(&rightWheel, -torqueR);
+    
+    g_lastWheelCmdMs = millis();
+    Serial.println("Open-loop mode");
 }

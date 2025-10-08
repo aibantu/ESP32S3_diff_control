@@ -6,7 +6,6 @@
 #define DIGITAL_READ   'd'
 #define READ_ENCODERS  'e'   
 #define MOTOR_SPEEDS_DEPRECATED   'm'  
-#define MOTOR_RAW_PWM  'o'   
 #define MOTOR_RAW_ANGLE  'g'  // 返回左右轮 rawAngle（原始角度）
 #define MOTOR_ANGLE      'h'  // 返回左右轮 angle（校正后角度）
 #define MOTOR_SPEED      'j'  // 返回左右轮 speed（rad/s）

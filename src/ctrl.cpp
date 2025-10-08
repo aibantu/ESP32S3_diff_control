@@ -14,39 +14,39 @@ CascadePID yawPID; //机身yaw和roll控制PID
 Target target = {0, 0, 0, 0, 0, 0, 0};
 StateVar stateVar;
 
-//目标量更新任务(根据蓝牙收到的目标量计算实际控制算法的给定量)
-void Ctrl_TargetUpdateTask(void *arg)
-{
-	TickType_t xLastWakeTime = xTaskGetTickCount();
-	float speedSlopeStep = 0.003f;
-	while (1)
-	{
-		//计算速度斜坡，斜坡值更新到target.speed
-		if(fabs(target.speedCmd - target.speed) < speedSlopeStep)
-			target.speed = target.speedCmd;
-		else
-		{
-			if(target.speedCmd - target.speed > 0)
-				target.speed += speedSlopeStep;
-			else
-				target.speed -= speedSlopeStep;
-		}
-		//计算位置目标，并限制在当前位置的±0.1m内
-		target.position += target.speed * 0.004f;
-		if(target.position - stateVar.x > 0.1f)
-			target.position = stateVar.x + 0.1f; 
-		else if(target.position - stateVar.x < -0.1f)
-			target.position = stateVar.x - 0.1f;
-		//限制速度目标在当前速度的±0.3m/s内
-		if(target.speed - stateVar.dx > 0.3f)
-			target.speed = stateVar.dx + 0.3f;
-		else if(target.speed - stateVar.dx < -0.3f)
-			target.speed = stateVar.dx - 0.3f;
-		//计算yaw方位角目标
-		target.yawAngle += target.yawSpeedCmd * 0.004f;
-		vTaskDelayUntil(&xLastWakeTime, 4); //每4ms更新一次
-	}
-}
+// //目标量更新任务(根据蓝牙收到的目标量计算实际控制算法的给定量)
+// void Ctrl_TargetUpdateTask(void *arg)
+// {
+// 	TickType_t xLastWakeTime = xTaskGetTickCount();
+// 	float speedSlopeStep = 0.003f;
+// 	while (1)
+// 	{
+// 		//计算速度斜坡，斜坡值更新到target.speed
+// 		if(fabs(target.speedCmd - target.speed) < speedSlopeStep)
+// 			target.speed = target.speedCmd;
+// 		else
+// 		{
+// 			if(target.speedCmd - target.speed > 0)
+// 				target.speed += speedSlopeStep;
+// 			else
+// 				target.speed -= speedSlopeStep;
+// 		}
+// 		//计算位置目标，并限制在当前位置的±0.1m内
+// 		target.position += target.speed * 0.004f;
+// 		if(target.position - stateVar.x > 0.1f)
+// 			target.position = stateVar.x + 0.1f; 
+// 		else if(target.position - stateVar.x < -0.1f)
+// 			target.position = stateVar.x - 0.1f;
+// 		//限制速度目标在当前速度的±0.3m/s内
+// 		if(target.speed - stateVar.dx > 0.3f)
+// 			target.speed = stateVar.dx + 0.3f;
+// 		else if(target.speed - stateVar.dx < -0.3f)
+// 			target.speed = stateVar.dx - 0.3f;
+// 		//计算yaw方位角目标
+// 		target.yawAngle += target.yawSpeedCmd * 0.004f;
+// 		vTaskDelayUntil(&xLastWakeTime, 4); //每4ms更新一次
+// 	}
+// }
 
 
 // void CtrlBasic_Task(void *arg)
@@ -107,18 +107,20 @@ void Ctrl_TargetUpdateTask(void *arg)
 // 	}
 // }
 
-void Ctrl_Init(void)
-{
+// void Ctrl_Init(void)
+// {
 
-	PID_Init(&yawPID.inner, 0.01, 0, 0.01, 0, 0.1);
-	PID_Init(&yawPID.outer, 1, 0, 0.01, 0, 1);
+// 	PID_Init(&yawPID.inner, 0.01, 0, 0.01, 0, 0.1);
+// 	PID_Init(&yawPID.outer, 1, 0, 0.01, 0, 1);
 
-	xTaskCreate(Ctrl_TargetUpdateTask, "Ctrl_TargetUpdateTask", 4096, NULL, 3, NULL);
-	vTaskDelay(2);
-	//xTaskCreate(Ctrl_StandupPrepareTask, "StandupPrepare_Task", 4096, NULL, 1, NULL);
-	//xTaskCreate(vSinGeneratorTask, "vSinGeneratorTask", 4096, NULL, 1, NULL);
-	//xTaskCreate(VMC_TestTask, "VMC_TestTask", 4096, NULL, 1, NULL);
-	// xTaskCreate(CtrlBasic_Task, "CtrlBasic_Task", 4096, NULL, 1, &ctrlBasicTaskHandle);
-	// 新增：初始化车轮速度控制模块
-	WheelSpeedCtrl_Init();
-}
+// 	// 注释掉Ctrl_TargetUpdateTask，避免与wheel_speed_ctrl冲突
+// 	// xTaskCreate(Ctrl_TargetUpdateTask, "Ctrl_TargetUpdateTask", 4096, NULL, 3, NULL);
+// 	vTaskDelay(2);
+// 	//xTaskCreate(Ctrl_StandupPrepareTask, "StandupPrepare_Task", 4096, NULL, 1, NULL);
+// 	//xTaskCreate(vSinGeneratorTask, "vSinGeneratorTask", 4096, NULL, 1, NULL);
+// 	//xTaskCreate(VMC_TestTask, "VMC_TestTask", 4096, NULL, 1, NULL);
+// 	// xTaskCreate(CtrlBasic_Task, "CtrlBasic_Task", 4096, NULL, 1, &ctrlBasicTaskHandle);
+// 	// 新增：初始化车轮速度控制模块
+// 	// WheelSpeedCtrl_Init();
+// 	// vTaskDelay(2);
+// }

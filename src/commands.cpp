@@ -30,23 +30,27 @@
 #define USB_CMD_TASK_STARTUP_DELAY_MS 1500
 
 // ===== 状态机缓冲 =====
-static int sm_arg = 0;      // 0=命令 1=参数1 2=参数2
+static int sm_arg = 0;      // 0=命令 1=参数1 2=参数2 3=参数3
 static int sm_index = 0;    // 当前写入索引
 static char sm_cmd = 0;     // 命令字符
 static char sm_argv1[16];
 static char sm_argv2[16];
+static char sm_argv3[16];
 static long sm_arg1 = 0;    // 解析后的数值参数1
 static long sm_arg2 = 0;    // 解析后的数值参数2
+static float sm_arg3 = 0;   // 解析后的数值参数3(浮点)
 static inline void sm_reset(){
-    sm_cmd = 0; sm_arg = 0; sm_index = 0; sm_arg1 = sm_arg2 = 0;
+    sm_cmd = 0; sm_arg = 0; sm_index = 0; sm_arg1 = sm_arg2 = 0; sm_arg3 = 0;
     memset(sm_argv1, 0, sizeof(sm_argv1));
     memset(sm_argv2, 0, sizeof(sm_argv2));
+    memset(sm_argv3, 0, sizeof(sm_argv3));
 }
 
 // 命令执行
 static void sm_run(){
     sm_arg1 = atol(sm_argv1);
     sm_arg2 = atol(sm_argv2);
+    sm_arg3 = atof(sm_argv3);
     switch (sm_cmd){
         case GET_BAUDRATE: // 'b'
             Serial.println("115200");
@@ -75,32 +79,30 @@ static void sm_run(){
             analogWrite((int)sm_arg1, duty);
             Serial.print("ANALOGWRITE "); Serial.print((int)sm_arg1); Serial.print(' '); Serial.println(duty);
             break; }
-        case 'm': { // 闭环速度：m <left_rad_s> <right_rad_s>
+        case 'm': { // 闭环速度控制：m <left_rad_s> <right_rad_s> [position_offset]
             float leftSpeed = (float)sm_arg1;
             float rightSpeed = (float)sm_arg2;
-            WheelSpeedCtrl_SetClosedLoop(leftSpeed, rightSpeed);
-            Serial.println("OK");
-            break; }
-        case 'o': { // 开环速度：o <left_rad_s> <right_rad_s>
-            float leftSpeed = (float)sm_arg1;
-            float rightSpeed = (float)sm_arg2;
-            WheelSpeedCtrl_SetOpenLoop(leftSpeed, rightSpeed);
+            float posOffset = sm_arg3; // 第三个参数为位置偏移(可选)
+            WheelSpeedCtrl_SetClosedLoop(leftSpeed, rightSpeed, posOffset);
             Serial.println("OK");
             break; }
         case MOTOR_RAW_ANGLE: { // 'g' 返回左右轮原始角度 rawAngle
-            float l = leftWheel.rawAngle;
-            float r = rightWheel.rawAngle;
-            Serial.printf("%.3f %.3f\n", l, r);
+            Serial.print("RawAngle L:");
+            Serial.print(leftWheel.rawAngle, 3);
+            Serial.print(" R:");
+            Serial.println(rightWheel.rawAngle, 3);
             break; }
         case MOTOR_ANGLE: { // 'h' 返回左右轮校正后角度 angle
-            float l = leftWheel.angle;
-            float r = rightWheel.angle;
-            Serial.printf("%.3f %.3f\n", l, r);
+            Serial.print("Angle L:");
+            Serial.print(leftWheel.angle, 3);
+            Serial.print(" R:");
+            Serial.println(rightWheel.angle, 3);
             break; }
         case MOTOR_SPEED: { // 'j' 返回左右轮速度 speed(rad/s)
-            float l = leftWheel.speed;
-            float r = rightWheel.speed;
-            Serial.printf("%.3f %.3f\n", l, r);
+            Serial.print("Speed L:");
+            Serial.print(leftWheel.speed, 3);
+            Serial.print(" R:");
+            Serial.println(rightWheel.speed, 3);
             break; }
         default:
             Serial.println("Invalid Command");
@@ -116,7 +118,9 @@ static void USB_CommandTask(void *pvParameters){
         while (Serial.available() > 0){
             char ch = Serial.read();
             if (ch == '\r' || ch == '\n'){
-                if (sm_arg == 1) sm_argv1[sm_index] = 0; else if (sm_arg == 2) sm_argv2[sm_index] = 0;
+                if (sm_arg == 1) sm_argv1[sm_index] = 0; 
+                else if (sm_arg == 2) sm_argv2[sm_index] = 0;
+                else if (sm_arg == 3) sm_argv3[sm_index] = 0;
                 if (sm_cmd) sm_run();
                 sm_reset();
                 continue;
@@ -124,6 +128,7 @@ static void USB_CommandTask(void *pvParameters){
             if (ch == ' ' || ch == '\t'){
                 if (sm_arg == 0) { sm_arg = 1; sm_index = 0; }
                 else if (sm_arg == 1){ sm_argv1[sm_index] = 0; sm_arg = 2; sm_index = 0; }
+                else if (sm_arg == 2){ sm_argv2[sm_index] = 0; sm_arg = 3; sm_index = 0; }
                 continue;
             }
             if (sm_arg == 0){
@@ -132,6 +137,8 @@ static void USB_CommandTask(void *pvParameters){
                 if (sm_index < (int)sizeof(sm_argv1)-1) sm_argv1[sm_index++] = ch;
             } else if (sm_arg == 2){
                 if (sm_index < (int)sizeof(sm_argv2)-1) sm_argv2[sm_index++] = ch;
+            } else if (sm_arg == 3){
+                if (sm_index < (int)sizeof(sm_argv3)-1) sm_argv3[sm_index++] = ch;
             }
         }
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -140,5 +147,5 @@ static void USB_CommandTask(void *pvParameters){
 
 // 使用构造函数属性在程序启动早期创建任务（不修改 main.cpp 的前提下启动）
 __attribute__((constructor)) static void create_usb_command_task(void){
-    xTaskCreate(USB_CommandTask, "USB_CmdTask", 2048, NULL, 1, NULL);
+    xTaskCreate(USB_CommandTask, "USB_CmdTask", 4096, NULL, 1, NULL);  // 增加栈大小
 }
