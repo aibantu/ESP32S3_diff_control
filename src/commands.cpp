@@ -2,10 +2,16 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <string.h>
-#include "../include/commands.h"
-#include "wheel_speed_ctrl.h"
-#include "motor.h"  // 为 g/h/j 查询电机数据
+#include "commands.h"
 #include "position_ctrl.h"
+
+// 引入速度/位置控制任务句柄和标志变量
+extern TaskHandle_t speedTaskHandle;
+extern bool is_speedTask_created;
+extern TaskHandle_t posTaskHandle;
+extern bool is_posTask_created;
+#include "speed_ctrl.h"
+#include "motor.h"  // 为 g/h/j 查询电机数据
 
 #define USB_CMD_TASK_STARTUP_DELAY_MS 1500
 // ===== 状态机缓冲 =====
@@ -73,9 +79,9 @@ static void sm_run(){
             break; }
         case MOTOR_ANGLE: { // 'h' 返回左右轮校正后角度 angle
             Serial.print("Angle L:");
-            Serial.print(leftWheel.angle, 3);
+            Serial.print(leftWheel.current_angle, 3);
             Serial.print(" R:");
-            Serial.println(rightWheel.angle, 3);
+            Serial.println(rightWheel.current_angle, 3);
             break; }
         case MOTOR_SPEED: { // 'j' 返回左右轮速度 speed(rad/s)
             Serial.print("Speed L:");
@@ -90,11 +96,30 @@ static void sm_run(){
             bool relative = false;
             // 仅当第三参数存在且为 'r' 时才按相对模式
             if (sm_argv3[0] != 0 && sm_argv3[0] == 'r') relative = true;
+            if (speedTaskHandle) {
+                vTaskDelete(speedTaskHandle);
+                speedTaskHandle = nullptr;
+                is_speedTask_created = false;
+            }
             PositionCtrl_Init();
             PositionCtrl_SetTargets(leftAngle, rightAngle, relative);
             Serial.print("Pos Target L:"); Serial.print(leftAngle, 3);
             Serial.print(" R:"); Serial.print(rightAngle, 3);
             Serial.print(relative?" (rel)":" (abs)");
+            Serial.println();
+            break; }
+        case 's': { // 's' : s <left_rad_s> <right_rad_s>
+            float leftSpeed = atof(sm_argv1);
+            float rightSpeed = atof(sm_argv2);
+            if (posTaskHandle) {
+                vTaskDelete(posTaskHandle);
+                posTaskHandle = nullptr;
+                is_posTask_created = false;
+            }
+            SpeedCtrl_Init();
+            SpeedCtrl_SetTargets(leftSpeed, rightSpeed);
+            Serial.print("Speed Target L:"); Serial.print(leftSpeed, 3);
+            Serial.print(" R:"); Serial.print(rightSpeed, 3);
             Serial.println();
             break; }
         default:

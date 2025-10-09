@@ -6,12 +6,15 @@
 #include "imu.h"
 Motor leftWheel, rightWheel; //两个电机对象
 float motorOutRatio = 1.0f; //电机输出电压比例，对所有电机同时有效
+static const int LDIR = 1;
+static const int RDIR = -1;
 /******* 电机模块 *******/
 static Preferences preferences; 
 //初始化一个电机对象
 void Motor_Init(Motor *motor, float offsetAngle, float maxVoltage, float torqueRatio, float dir, float (*calcRevVolt)(float speed))
 {
-	motor->speed = motor->angle = motor->voltage = 0;
+	motor->speed = motor->current_angle = motor->last_angle = motor->voltage = 0;
+    motor->last_time = motor->current_time = micros();
 	motor->offsetAngle = offsetAngle;
 	motor->maxVoltage = maxVoltage;
 	motor->torqueRatio = torqueRatio;
@@ -50,7 +53,7 @@ void Motor_Update(Motor *motor, uint8_t *data)
 {
 	int32_t raw = *(int32_t *)&data[0];
 	motor->rawAngle = raw / 1000.0f; // 新增原始角度
-	motor->angle = (motor->rawAngle - motor->offsetAngle) * motor->dir;
+	motor->current_angle = (motor->rawAngle - motor->offsetAngle) * motor->dir;
 	motor->speed = (*(int16_t *)&data[4] / 10 * 2 * M_PI / 60) * motor->dir;
 }
 
@@ -129,7 +132,7 @@ void Motor_CalibrateOffset(Motor *motor, int jointIndex)
         Serial.println("错误：电机方向(dir)为0，使用默认值1");
         motor->dir = 1;
     }
-    float currentAngle = motor->angle;
+    float currentAngle = motor->current_angle;
     float targetAngle = 0.0f;
     if (jointIndex == 1 || jointIndex == 3) {
         targetAngle = 3.14f;
@@ -184,7 +187,7 @@ void Log_Task(void *arg)
 {
     while(1) {
         if(logEnabled) {
-            Serial.printf("%.3f,%.3f,%.3f,%.3f\n", leftWheel.angle, leftWheel.speed, rightWheel.angle, rightWheel.speed);
+            Serial.printf("%.3f,%.3f,%.3f,%.3f\n", leftWheel.current_angle, leftWheel.speed, rightWheel.current_angle, rightWheel.speed);
         }
         vTaskDelay(100); // 100ms输出一次
     }
@@ -195,15 +198,14 @@ void Log_Task(void *arg)
 void Motor_InitAll(void)
 {
     // 基础参数初始化 - 暂时统一方向，通过软件处理差动
-    Motor_Init(&leftWheel, 0, 7.0f, 0.05f, M1_DIR, Motor_CalcRevVolt4310);   // 左轮正向
-    Motor_Init(&rightWheel, 0, 7.0f, 0.05f, M2_DIR, Motor_CalcRevVolt4310);  // 右轮也设为正向，避免方向冲突
+    Motor_Init(&leftWheel, 0, 7.0f, 0.05f, LDIR, Motor_CalcRevVolt4310);   // 左轮正向
+    Motor_Init(&rightWheel, 0, 7.0f, 0.05f, RDIR, Motor_CalcRevVolt4310);  // 右轮反向
     // 创建发送任务
     xTaskCreate(Motor_SendTask, "Motor_SendTask", 2048, NULL, 4, NULL);
     
     // 等待CAN通信稳定
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     
-   
     // 所有初始化完成后，再创建串口命令处理任务
     xTaskCreate([](void* arg) {
         while(1) {

@@ -11,20 +11,20 @@
 #include "motor.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-
+#include "lowpass_filter.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // 初始化（幂等）。创建位置控制任务，但默认未激活。
 void PositionCtrl_Init();
-
 // 设置目标角度（单位：rad）。
 // relative = true 时按相对当前角度偏移；否则为绝对角度。
 void PositionCtrl_SetTargets(float leftAngle, float rightAngle, bool relative);
-
-// 关闭位置闭环（立即输出 0 扭矩）。
-void PositionCtrl_Disable();
+void setAnglePID(float P,float I,float D,float ramp,float limit);
+//M0角度PID接口
+float getAnglePID(float error);
+static void PositionCtrl_Task(void *arg);
 
 #ifdef __cplusplus
 }

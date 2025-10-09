@@ -5,14 +5,16 @@
 typedef struct 
 {	float rawAngle;
 	float speed;			   // rad/s
-	float angle, offsetAngle;  // rad
+	float offsetAngle;  // rad
+	float last_angle;
+    float current_angle;
+	long last_time;
+    long current_time;
 	float voltage, maxVoltage; // V
 	float torque, torqueRatio; // Nm, voltage = torque / torqueRatio
 	int dir;				   // 1 or -1
 	float (*calcRevVolt)(float speed); // 指向反电动势计算函数
 } Motor;
-static float  M1_DIR = 1;
-static float  M2_DIR = -1;
 extern Motor leftWheel, rightWheel; //两个电机对象
 
 void Motor_InitAll(void);

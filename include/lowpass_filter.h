@@ -20,8 +20,8 @@ public:
     float Tf; //!< 低通滤波时间常数
 
 protected:
-    unsigned long timestamp_prev;  //!< 最后执行时间戳
-    float y_prev; //!< 上一个循环中的过滤后的值
+    unsigned long timestamp_prev;  //最后执行时间戳
+    float y_prev; //上一个循环中的过滤后的值
 };
 
 #endif
