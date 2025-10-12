@@ -7,7 +7,7 @@
 #include "speed_ctrl.h"
 void setup()
 {
-       Serial.begin(115200);
+       Serial.begin(57600);
     // 等待主机打开串口（可选：最多等待2秒，防止卡死）
     unsigned long start = millis();
     while(!Serial && millis() - start < 2000) {

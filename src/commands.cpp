@@ -4,12 +4,6 @@
 #include <string.h>
 #include "commands.h"
 #include "position_ctrl.h"
-
-// 引入速度/位置控制任务句柄和标志变量
-extern TaskHandle_t speedTaskHandle;
-extern bool is_speedTask_created;
-extern TaskHandle_t posTaskHandle;
-extern bool is_posTask_created;
 #include "speed_ctrl.h"
 #include "motor.h"  // 为 g/h/j 查询电机数据
 
@@ -38,7 +32,7 @@ static void sm_run(){
     sm_arg3 = atof(sm_argv3);
     switch (sm_cmd){
         case GET_BAUDRATE: // 'b'
-            Serial.println("115200");
+            Serial.println("57600");
             break;
         case ANALOG_READ: // 'a'
             Serial.println(analogRead((int)sm_arg1));
@@ -96,10 +90,8 @@ static void sm_run(){
             bool relative = false;
             // 仅当第三参数存在且为 'r' 时才按相对模式
             if (sm_argv3[0] != 0 && sm_argv3[0] == 'r') relative = true;
-            if (speedTaskHandle) {
-                vTaskDelete(speedTaskHandle);
-                speedTaskHandle = nullptr;
-                is_speedTask_created = false;
+            if (SpeedCtrl_Active()) {
+                SpeedCtrl_Stop();
             }
             PositionCtrl_Init();
             PositionCtrl_SetTargets(leftAngle, rightAngle, relative);
@@ -111,10 +103,8 @@ static void sm_run(){
         case 's': { // 's' : s <left_rad_s> <right_rad_s>
             float leftSpeed = atof(sm_argv1);
             float rightSpeed = atof(sm_argv2);
-            if (posTaskHandle) {
-                vTaskDelete(posTaskHandle);
-                posTaskHandle = nullptr;
-                is_posTask_created = false;
+            if (PositionCtrl_Active()) {
+                PositionCtrl_Stop();
             }
             SpeedCtrl_Init();
             SpeedCtrl_SetTargets(leftSpeed, rightSpeed);

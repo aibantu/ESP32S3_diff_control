@@ -25,6 +25,8 @@ void setAnglePID(float P,float I,float D,float ramp,float limit);
 //M0角度PID接口
 float getAnglePID(float error);
 static void PositionCtrl_Task(void *arg);
+bool PositionCtrl_Active();
+void PositionCtrl_Stop();
 
 #ifdef __cplusplus
 }

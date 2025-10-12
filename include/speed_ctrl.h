@@ -17,11 +17,6 @@ void SpeedCtrl_Init();
 // 设置目标速度（单位：rad/s）。
 // relative = true 时按相对当前速度偏移；否则为绝对速度。
 void SpeedCtrl_SetTargets(float leftSpeed, float rightSpeed);
-
-void setSpeedPID(float P,float I,float D,float ramp,float limit);
-
-//M0速度PID接口
-float getSpeedPID(float error);
 // 停止输出
 void stopWheel();
 
@@ -29,7 +24,8 @@ void stopWheel();
 float getLeftVelocity();
 
 float getRightVelocity();
-
+bool SpeedCtrl_Active();
+void SpeedCtrl_Stop();
 static void SpeedCtrl_Task(void *arg);
 
 #ifdef __cplusplus

@@ -6,8 +6,8 @@
 #include "imu.h"
 Motor leftWheel, rightWheel; //两个电机对象
 float motorOutRatio = 1.0f; //电机输出电压比例，对所有电机同时有效
-static const int LDIR = 1;
-static const int RDIR = -1;
+static const int LDIR = -1;
+static const int RDIR = 1;
 /******* 电机模块 *******/
 static Preferences preferences; 
 //初始化一个电机对象
@@ -34,10 +34,10 @@ float Motor_CalcRevVolt4310(float speed)
 void Motor_UpdateVoltage(Motor *motor)
 {
 	float voltage = motor->torque / motor->torqueRatio * motorOutRatio;
-	if (motor->speed >= 0)
-		voltage += motor->calcRevVolt(motor->speed);
-	else if (motor->speed < 0)
-		voltage -= motor->calcRevVolt(-motor->speed);	//这段没问题 方向最后加上 先按照标量算
+	// if (motor->speed >= 0)
+	// 	voltage += motor->calcRevVolt(motor->speed);
+	// else if (motor->speed < 0)
+	// 	voltage -= motor->calcRevVolt(-motor->speed);	//这段没问题 方向最后加上 先按照标量算
 
 	//限幅
 	if (voltage > motor->maxVoltage)
@@ -198,8 +198,8 @@ void Log_Task(void *arg)
 void Motor_InitAll(void)
 {
     // 基础参数初始化 - 暂时统一方向，通过软件处理差动
-    Motor_Init(&leftWheel, 0, 7.0f, 0.05f, LDIR, Motor_CalcRevVolt4310);   // 左轮正向
-    Motor_Init(&rightWheel, 0, 7.0f, 0.05f, RDIR, Motor_CalcRevVolt4310);  // 右轮反向
+    Motor_Init(&leftWheel, 0, 7.0f, 0.8f, LDIR, Motor_CalcRevVolt4310);   // 左轮正向
+    Motor_Init(&rightWheel, 0, 7.0f, 0.8f, RDIR, Motor_CalcRevVolt4310);  // 右轮反向
     // 创建发送任务
     xTaskCreate(Motor_SendTask, "Motor_SendTask", 2048, NULL, 4, NULL);
     
