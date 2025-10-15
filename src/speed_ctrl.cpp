@@ -24,8 +24,8 @@ LowPassFilter rightVelFilter = LowPassFilter(0.003); // Tf = 3ms   //M0速度环
 // 振动优化版本: 下调Kp与Ki, 提升Kd 形成更高阻尼
 // 旧: 1.30 / 0.05 / 0.02  振动说明阻尼不足 + 积分稍高
 // 新: 1.10 / 0.035 / 0.035  (若仍振动可继续: Kp 1.05, Ki 0.030, Kd 0.040)
-PID leftSpeedPid{3.2f,0.3f,0.05f,20.0f,100.0f};
-PID rightSpeedPid{3.2f,0.3f,0.05f,20.0f,100.0f};
+PID leftSpeedPid{3.6f,0.35f,0.1f,30.0f,100.0f};
+PID rightSpeedPid{3.6f,0.35f,0.1f,30.0f,100.0f};
 float speed_limit_error = 0.5f;
 //重新设置速度PID
 // 停止输出

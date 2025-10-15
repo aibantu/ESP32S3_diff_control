@@ -7,9 +7,10 @@
 #define READ_ENCODERS  'e'   
 #define MOTOR_SPEEDS_DEPRECATED   'm'  
 // 查看can总线发送来的电机数据
-#define MOTOR_RAW_ANGLE  'g'  // 返回左右轮 rawAngle（原始角度）
-#define MOTOR_ANGLE      'h'  // 返回左右轮 angle（校正后角度）
-#define MOTOR_SPEED      'j'  // 返回左右轮 speed（rad/s）
+// #define MOTOR_RAW_ANGLE  'g'  // 返回左右轮 rawAngle（原始角度）
+// #define MOTOR_ANGLE      'h'  // 返回左右轮 angle（校正后角度）
+// #define MOTOR_SPEED      'j'  // 返回左右轮 speed（rad/s）
+#define MOTOR_ANGLE_AND_SPEED      'j'  // 返回左右轮angle（校正后角度）以及 speed（rad/s）
 // 设置左右轮电机位置或者速度
 #define SET_POSITION     'p'  // 设置角度位置(p 20 20 r)
 #define SET_SPEED        's'  // 设置速度(s 10 20)  (rad/s)

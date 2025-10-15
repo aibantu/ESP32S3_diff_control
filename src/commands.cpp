@@ -65,22 +65,13 @@ static void sm_run(){
             // WheelSpeedCtrl_SetClosedLoop(leftSpeed, rightSpeed, posOffset);
             Serial.println("OK");
             break; }
-        case MOTOR_RAW_ANGLE: { // 'g' 返回左右轮原始角度 rawAngle
-            Serial.print("RawAngle L:");
-            Serial.print(leftWheel.rawAngle, 3);
-            Serial.print(" R:");
-            Serial.println(rightWheel.rawAngle, 3);
-            break; }
-        case MOTOR_ANGLE: { // 'h' 返回左右轮校正后角度 angle
-            Serial.print("Angle L:");
+        case MOTOR_ANGLE_AND_SPEED: { // 'j' 返回：leftAngle rightAngle leftSpeed rightSpeed（空格分隔）
             Serial.print(leftWheel.current_angle, 3);
-            Serial.print(" R:");
-            Serial.println(rightWheel.current_angle, 3);
-            break; }
-        case MOTOR_SPEED: { // 'j' 返回左右轮速度 speed(rad/s)
-            Serial.print("Speed L:");
+            Serial.print(' ');
+            Serial.print(rightWheel.current_angle, 3);
+            Serial.print(' ');
             Serial.print(leftWheel.speed, 3);
-            Serial.print(" R:");
+            Serial.print(' ');
             Serial.println(rightWheel.speed, 3);
             break; }
         case 'p': { // 'p' : p <left_angle> <right_angle> [r]
