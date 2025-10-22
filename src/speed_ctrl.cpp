@@ -10,28 +10,36 @@ static volatile float right_speed = 0.0f;  // rad/s
 bool is_speedTask_created = false;
 
 // ============= 配置参数（可按需调参） =================
-LowPassFilter leftVelFilter = LowPassFilter(0.003); // Tf = 3ms   //M0速度环
-LowPassFilter rightVelFilter = LowPassFilter(0.003); // Tf = 3ms   //M0速度环
+LowPassFilter leftVelFilter = LowPassFilter(0.005); // Tf = 3ms   //M0速度环
+LowPassFilter rightVelFilter = LowPassFilter(0.005); // Tf = 3ms   //M0速度环
 // 优化后的速度环 PID 数值: {Kp, Ki, Kd, ramp, limit}
-// 调参思路:
-// - 原Kp=2.5偏高导致大步阶易超调；Ki=0.1 对电机+机械已含积分的系统偏大；Kd=0.01 阻尼不足。
-// - ramp=10 限制输出变化率拖慢加速；limit=50 远超电机可实际利用的扭矩映射区间(易长时间饱和)。
-// 新参数: Kp 1.30  提供足够响应
-//        Ki 0.05  维持稳态消除误差又不过度积累
-//        Kd 0.02  增强阻尼抑制超调
-//        ramp 0   取消速率限制, 加快到达
-//        limit 6  接近可用扭矩范围(约= maxVoltage*torqueRatio ≈ 7*0.8)
-// 振动优化版本: 下调Kp与Ki, 提升Kd 形成更高阻尼
-// 旧: 1.30 / 0.05 / 0.02  振动说明阻尼不足 + 积分稍高
-// 新: 1.10 / 0.035 / 0.035  (若仍振动可继续: Kp 1.05, Ki 0.030, Kd 0.040)
-PID leftSpeedPid{3.6f,0.35f,0.1f,30.0f,100.0f};
-PID rightSpeedPid{3.6f,0.35f,0.1f,30.0f,100.0f};
-float speed_limit_error = 0.5f;
+
+PID leftSpeedPid{3.0f,0.22f,0.06f,30.0f,100.0f};
+PID rightSpeedPid{3.0f,0.22f,0.06f,30.0f,100.0f};
+const float zero_speed_threshold = 0.12f; // rad/s, 可调
+static const float torque_dead_zone = 0.06f;        // 扭矩输出死区（N·m或等效单位）
 //重新设置速度PID
 // 停止输出
-void stopWheel(){
+
+void stopLeftWheel(){
+  leftSpeedPid.integral_prev = 0.0f;
+  leftSpeedPid.output_prev = 0.0f;
+  leftSpeedPid.error_prev = 0.0f;
+  leftSpeedPid.timestamp_prev = micros();
 	Motor_SetTorque(&leftWheel, 0.0f);
+}
+
+void stopRightWheel(){
+  rightSpeedPid.integral_prev = 0.0f;
+  rightSpeedPid.output_prev = 0.0f;
+  rightSpeedPid.error_prev = 0.0f;
+  rightSpeedPid.timestamp_prev = micros();
 	Motor_SetTorque(&rightWheel, 0.0f);
+}
+
+void stopWheel(){
+    stopLeftWheel();
+    stopRightWheel();
 }
 
 //有滤波
@@ -60,24 +68,54 @@ void SpeedCtrl_SetTargets(float leftSpeed, float rightSpeed){
 static void SpeedCtrl_Task(void *arg){
 	TickType_t lastWake = xTaskGetTickCount();
 	while(true){
-
 		// 当前误差
 		float errL = left_speed  - getLeftVelocity();
 		float errR = right_speed - getRightVelocity();
 
-    if (fabs(errL) < speed_limit_error){
+    if (fabs(errL) < zero_speed_threshold){
       errL = 0.0;
     }
-    if (fabs(errR) < speed_limit_error) {
+    if (fabs(errR) < zero_speed_threshold) {
       errR = 0.0;
     }
 
-		// PID 输出（力矩指令)。右轮方向保持软件反转。
-		float outL = getPID(&leftSpeedPid, errL);
-		float outR = getPID(&rightSpeedPid, errR);
-		// 输出给电机（右轮取反匹配既有差动约定）
-		Motor_SetTorque(&leftWheel, outL);
-		Motor_SetTorque(&rightWheel, outR);
+
+    if (left_speed == 0.0f) {
+        if (fabs(getLeftVelocity()) < zero_speed_threshold) {
+            stopLeftWheel(); // 速度足够低时清零
+        } else {
+            // 速度未达标时，保留PID调节但降低积分增益（避免过度积累）
+            float temp_I = leftSpeedPid.I;
+            leftSpeedPid.I *= 0.3f; // 临时降低积分强度
+            float outL = getPID(&leftSpeedPid, errL);
+            if (fabs(outL) < torque_dead_zone) outL = 0.0f;
+            Motor_SetTorque(&leftWheel, outL);
+            leftSpeedPid.I = temp_I; // 恢复原积分增益
+        }
+    } else {
+        float outL = getPID(&leftSpeedPid, errL);
+        if (fabs(outL) < torque_dead_zone) outL = 0.0f;
+        Motor_SetTorque(&leftWheel, outL);
+    }
+
+    if (right_speed == 0.0f) {
+        if (fabs(getRightVelocity()) < zero_speed_threshold) {
+            stopRightWheel(); // 速度足够低时清零
+        } else {
+            // 速度未达标时，保留PID调节但降低积分增益（避免过度积累）
+            float temp_I = rightSpeedPid.I;
+            rightSpeedPid.I *= 0.3f; // 临时降低积分强度
+            float outR = getPID(&rightSpeedPid, errR);
+            if (fabs(outR) < torque_dead_zone) outR = 0.0f;
+            Motor_SetTorque(&rightWheel, outR);
+            rightSpeedPid.I = temp_I; // 恢复原积分增益
+        }
+    } else {
+        float outR = getPID(&rightSpeedPid, errR);
+        if (fabs(outR) < torque_dead_zone) outR = 0.0f;
+        Motor_SetTorque(&rightWheel, outR);
+    }
+
 		vTaskDelayUntil(&lastWake, dt);
 	}
 }

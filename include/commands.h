@@ -12,7 +12,7 @@
 // #define MOTOR_SPEED      'j'  // 返回左右轮 speed（rad/s）
 #define MOTOR_ANGLE_AND_SPEED      'j'  // 返回左右轮angle（校正后角度）以及 speed（rad/s）
 // 设置左右轮电机位置或者速度
-#define SET_POSITION     'p'  // 设置角度位置(p 20 20 r)
+// #define SET_POSITION     'p'  // 设置角度位置(p 20 20 r)
 #define SET_SPEED        's'  // 设置速度(s 10 20)  (rad/s)
 // 新增差速控制相关：
 #define DIFF_SET_VW      'v'  // 设置线速度(m/s) 与角速度(rad/s) 参考（进入速度模式闭环）

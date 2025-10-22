@@ -18,11 +18,12 @@ void SpeedCtrl_Init();
 // relative = true 时按相对当前速度偏移；否则为绝对速度。
 void SpeedCtrl_SetTargets(float leftSpeed, float rightSpeed);
 // 停止输出
+void stopLeftWheel();
+void stopRightWheel();
 void stopWheel();
 
 //有滤波
 float getLeftVelocity();
-
 float getRightVelocity();
 bool SpeedCtrl_Active();
 void SpeedCtrl_Stop();

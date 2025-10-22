@@ -25,6 +25,7 @@ void setup()
     // WheelSpeedCascade_Init();
     // WheelSpeedCtrl_Init();
     // 原先这里调用 BLE_Init(); 但当前项目未使用 BLE，已移除引用。
+    SpeedCtrl_Init();
 }
 
 void loop()

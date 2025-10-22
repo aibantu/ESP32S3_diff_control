@@ -23,10 +23,10 @@ void Motor_Init(Motor *motor, float offsetAngle, float maxVoltage, float torqueR
 }
 
 //只测量正转 后面有处理
-float Motor_CalcRevVolt4310(float speed)
+float Motor_CalcRevVolt4010(float speed)
 {
 	//return 0.000002f * speed * speed * speed - 0.0002f * speed * speed + 0.1521f * speed;     //4310
-	return 0.000002f * speed * speed * speed - 0.0002f * speed * speed + 0.0521f * speed;   //4010
+	return 0.000002f * speed * speed * speed - 0.00016f * speed * speed + 0.0321f * speed;   //4010
 }
 
 //由设置的目标扭矩和当前转速计算补偿反电动势后的驱动输出电压，并进行限幅
@@ -39,6 +39,7 @@ void Motor_UpdateVoltage(Motor *motor)
 	// else if (motor->speed < 0)
 	// 	voltage -= motor->calcRevVolt(-motor->speed);	//这段没问题 方向最后加上 先按照标量算
 
+    if (fabsf(voltage) < 0.03f) voltage = 0.0f; // 20mV，可调
 	//限幅
 	if (voltage > motor->maxVoltage)
 		voltage = motor->maxVoltage;
@@ -54,7 +55,10 @@ void Motor_Update(Motor *motor, uint8_t *data)
 	int32_t raw = *(int32_t *)&data[0];
 	motor->rawAngle = raw / 1000.0f; // 新增原始角度
 	motor->current_angle = (motor->rawAngle - motor->offsetAngle) * motor->dir;
-	motor->speed = (*(int16_t *)&data[4] / 10 * 2 * M_PI / 60) * motor->dir;
+    int16_t raw_rpm_x10 = *(int16_t *)&data[4];
+    float rpm = ((float)raw_rpm_x10) / 10.0f;
+    motor->speed = rpm * 2.0f * M_PI / 60.0f * motor->dir;
+	// motor->speed = (*(int16_t *)&data[4] / 10.0f * 2 * M_PI / 60) * motor->dir;
 }
 
 //设置电机扭矩
@@ -198,8 +202,8 @@ void Log_Task(void *arg)
 void Motor_InitAll(void)
 {
     // 基础参数初始化 - 暂时统一方向，通过软件处理差动
-    Motor_Init(&leftWheel, 0, 7.0f, 0.8f, LDIR, Motor_CalcRevVolt4310);   // 左轮正向
-    Motor_Init(&rightWheel, 0, 7.0f, 0.8f, RDIR, Motor_CalcRevVolt4310);  // 右轮反向
+    Motor_Init(&leftWheel, 0, 7.0f, 0.8f, LDIR, Motor_CalcRevVolt4010);   // 左轮正向
+    Motor_Init(&rightWheel, 0, 7.0f, 0.8f, RDIR, Motor_CalcRevVolt4010);  // 右轮反向
     // 创建发送任务
     xTaskCreate(Motor_SendTask, "Motor_SendTask", 2048, NULL, 4, NULL);
     

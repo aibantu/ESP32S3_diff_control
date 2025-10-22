@@ -74,34 +74,30 @@ static void sm_run(){
             Serial.print(' ');
             Serial.println(rightWheel.speed, 3);
             break; }
-        case 'p': { // 'p' : p <left_angle> <right_angle> [r]
-            // 参数：leftAngle(rad) rightAngle(rad) 可选 第三参数=字符r表示相对模式，否则绝对
-            float leftAngle = atof(sm_argv1);
-            float rightAngle = atof(sm_argv2);
-            bool relative = false;
-            // 仅当第三参数存在且为 'r' 时才按相对模式
-            if (sm_argv3[0] != 0 && sm_argv3[0] == 'r') relative = true;
-            if (SpeedCtrl_Active()) {
-                SpeedCtrl_Stop();
-            }
-            PositionCtrl_Init();
-            PositionCtrl_SetTargets(leftAngle, rightAngle, relative);
-            Serial.print("Pos Target L:"); Serial.print(leftAngle, 3);
-            Serial.print(" R:"); Serial.print(rightAngle, 3);
-            Serial.print(relative?" (rel)":" (abs)");
-            Serial.println();
-            break; }
+        // case 'p': { // 'p' : p <left_angle> <right_angle> [r]
+        //     // 参数：leftAngle(rad) rightAngle(rad) 可选 第三参数=字符r表示相对模式，否则绝对
+        //     float leftAngle = atof(sm_argv1);
+        //     float rightAngle = atof(sm_argv2);
+        //     bool relative = false;
+        //     // 仅当第三参数存在且为 'r' 时才按相对模式
+        //     if (sm_argv3[0] != 0 && sm_argv3[0] == 'r') relative = true;
+        //     if (SpeedCtrl_Active()) {
+        //         SpeedCtrl_Stop();
+        //     }
+        //     PositionCtrl_Init();
+        //     PositionCtrl_SetTargets(leftAngle, rightAngle, relative);
+        //     Serial.print("Pos Target L:"); Serial.print(leftAngle, 3);
+        //     Serial.print(" R:"); Serial.print(rightAngle, 3);
+        //     Serial.print(relative?" (rel)":" (abs)");
+        //     Serial.println();
+        //     break; }
         case 's': { // 's' : s <left_rad_s> <right_rad_s>
             float leftSpeed = atof(sm_argv1);
             float rightSpeed = atof(sm_argv2);
-            if (PositionCtrl_Active()) {
-                PositionCtrl_Stop();
-            }
-            SpeedCtrl_Init();
             SpeedCtrl_SetTargets(leftSpeed, rightSpeed);
-            Serial.print("Speed Target L:"); Serial.print(leftSpeed, 3);
-            Serial.print(" R:"); Serial.print(rightSpeed, 3);
-            Serial.println();
+            // Serial.print("Speed Target L:"); Serial.print(leftSpeed, 3);
+            // Serial.print(" R:"); Serial.print(rightSpeed, 3);
+            // Serial.println();
             break; }
         default:
             Serial.println("Invalid Command");
